@@ -68,65 +68,80 @@ def only_toyota_left(candidate_cars):
 
 # BOUNTY: every added fingerprint in selfdrive/car/*/values.py is a $100 coupon code on shop.comma.ai
 # **** for use live only ****
-def fingerprint(logcan, sendcan, has_relay):
-  params = Params()
-  car_params = params.get("CarParams")
+def fingerprint(logcan, sendcan, is_panda_black):
+  if os.getenv("SIMULATOR2") is not None:
+    return ("simulator2", None, "")
+  elif os.getenv("SIMULATOR") is not None:
+    return ("simulator", None, "")
 
-  if car_params is not None:
-    # use already stored VIN: a new VIN query cannot be done, since panda isn't in ELM327 mode
-    car_params = car.CarParams.from_bytes(car_params)
-    vin = VIN_UNKNOWN if car_params.carVin == "" else car_params.carVin
-  elif has_relay:
-    # Vin query only reliably works thorugh OBDII
-    vin = get_vin(logcan, sendcan, 1)
-  else:
-    vin = VIN_UNKNOWN
+  # params = Params()
+  # car_params = params.get("CarParams")
 
-  cloudlog.warning("VIN %s", vin)
-  Params().put("CarVin", vin)
+  # if car_params is not None:
+  #   # use already stored VIN: a new VIN query cannot be done, since panda isn't in ELM327 mode
+  #   car_params = car.CarParams.from_bytes(car_params)
+  #   vin = VIN_UNKNOWN if car_params.carVin == "" else car_params.carVin
+  # elif is_panda_black:
+  #   # Vin query only reliably works thorugh OBDII
+  #   vin = get_vin(logcan, sendcan, 1)
+  # else:
+  #   vin = VIN_UNKNOWN
 
-  finger = gen_empty_fingerprint()
-  candidate_cars = {i: all_known_cars() for i in [0, 1]}  # attempt fingerprint on both bus 0 and 1
+  # cloudlog.warning("VIN %s", vin)
+  # Params().put("CarVin", vin)
+
+  # finger = {i: {} for i in range(0, 4)}  # collect on all buses
+  #candidate_cars = {i: all_known_cars() for i in [0, 1]}  # attempt fingerprint on both bus 0 and 1 {0:[all known cars], 1:[all known cars]}
+  candidate_cars = {0:['MITSUBISHI MIEV', 'mock']}
+  # frame = 0
+  # frame_fingerprint = 10  # 0.1s
+  # car_fingerprint = None
+  # done = False
+
+  # while not done:
+  #   a = get_one_can(logcan)
+
+  #   for can in a.can:
+  #     # need to independently try to fingerprint both bus 0 and 1 to work
+  #     # for the combo black_panda and honda_bosch. Ignore extended messages
+  #     # and VIN query response.
+  #     # Include bus 2 for toyotas to disambiguate cars using camera messages
+  #     # (ideally should be done for all cars but we can't for Honda Bosch)
+  #     for b in candidate_cars:
+  #       if (can.src == b or (only_toyota_left(candidate_cars[b]) and can.src == 2)) and \
+  #          can.address < 0x800 and can.address not in [0x7df, 0x7e0, 0x7e8]:
+  #         finger[can.src][can.address] = len(can.dat)
+  #         candidate_cars[b] = eliminate_incompatible_cars(can, candidate_cars[b])
+
+  #   # if we only have one car choice and the time since we got our first
+  #   # message has elapsed, exit
+  #   for b in candidate_cars:
+  #     # Toyota needs higher time to fingerprint, since DSU does not broadcast immediately
+  #     if only_toyota_left(candidate_cars[b]):
+  #       frame_fingerprint = 100  # 1s
+  #     if len(candidate_cars[b]) == 1:
+  #       if frame > frame_fingerprint:
+  #         # fingerprint done
+  #         car_fingerprint = candidate_cars[b][0]
+
+  #   # bail if no cars left or we've been waiting for more than 2s
+  #   failed = all(len(cc) == 0 for cc in candidate_cars.itervalues()) or frame > 200
+  #   succeeded = car_fingerprint is not None
+  #   done = failed or succeeded
+
+  #   
+
+  # cloudlog.warning("fingerprinted %s", car_fingerprint)
+  #candidate_cars = {0:[CAR.MIEV]}
+  # let's force the miev
+  print(candidate_cars)
+  finger = {i: {} for i in range(0, 4)}  # collect on all buses
+  #{i: {} for i in range(0, 4)}  # collect on all buses. also the fingerprint itself does not matter.
   frame = 0
   frame_fingerprint = 10  # 0.1s
-  car_fingerprint = None
-  done = False
-
-  while not done:
-    a = get_one_can(logcan)
-
-    for can in a.can:
-      # need to independently try to fingerprint both bus 0 and 1 to work
-      # for the combo black_panda and honda_bosch. Ignore extended messages
-      # and VIN query response.
-      # Include bus 2 for toyotas to disambiguate cars using camera messages
-      # (ideally should be done for all cars but we can't for Honda Bosch)
-      if can.src in range(0, 4):
-        finger[can.src][can.address] = len(can.dat)
-      for b in candidate_cars:
-        if (can.src == b or (only_toyota_left(candidate_cars[b]) and can.src == 2)) and \
-           can.address < 0x800 and can.address not in [0x7df, 0x7e0, 0x7e8]:
-          candidate_cars[b] = eliminate_incompatible_cars(can, candidate_cars[b])
-
-    # if we only have one car choice and the time since we got our first
-    # message has elapsed, exit
-    for b in candidate_cars:
-      # Toyota needs higher time to fingerprint, since DSU does not broadcast immediately
-      if only_toyota_left(candidate_cars[b]):
-        frame_fingerprint = 100  # 1s
-      if len(candidate_cars[b]) == 1:
-        if frame > frame_fingerprint:
-          # fingerprint done
-          car_fingerprint = candidate_cars[b][0]
-
-    # bail if no cars left or we've been waiting for more than 2s
-    failed = all(len(cc) == 0 for cc in candidate_cars.values()) or frame > 200
-    succeeded = car_fingerprint is not None
-    done = failed or succeeded
-
-    frame += 1
-
-  cloudlog.warning("fingerprinted %s", car_fingerprint)
+  car_fingerprint = "MITSUBISHI MIEV" #candidate_cars[0][0]
+  vin = VIN_UNKNOWN
+  frame += 1
   return car_fingerprint, finger, vin
 
 
@@ -139,6 +154,7 @@ def get_car(logcan, sendcan, has_relay=False):
     candidate = "mock"
 
   CarInterface, CarController = interfaces[candidate]
-  car_params = CarInterface.get_params(candidate, fingerprints, vin, has_relay)
+  car_params = CarInterface.get_params(candidate, fingerprints[0], vin)
+  cloudlog.warn("CarParams is loading %s" % candidate)
 
   return CarInterface(car_params, CarController), car_params
