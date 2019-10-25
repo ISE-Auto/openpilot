@@ -1,7 +1,7 @@
 from cereal import car
 from common.numpy_fast import clip
 from selfdrive.car import create_gas_command
-from selfdrive.car.mitsubishi.mitsubishican import make_toyota_can_msg, create_steer_command
+from selfdrive.car.mitsubishi.mitsubishican import make_toyota_can_msg, create_steer_command, create_brake_command
 from selfdrive.car.mitsubishi.values import ECU, STATIC_MSGS
 from selfdrive.can.packer import CANPacker
 
@@ -112,9 +112,9 @@ class CarController():
     can_sends = []
 
     # gas and brake
-    # TODO: brakes
 
     apply_gas = clip(actuators.gas, 0., 1.)
+    apply_brake = clip(actuators.gas, 0., 1.)
 
     # steer torque
     apply_steer = int(round(actuators.steer * SteerLimitParams.STEER_MAX))
@@ -151,6 +151,7 @@ class CarController():
       # send exactly zero if apply_gas is zero. Interceptor will send the max between read value and apply_gas.
       # This prevents unexpected pedal range rescaling
       can_sends.append(create_gas_command(self.packer, apply_gas, frame//2))
+      can_sends.append(create_brake_command(self.packer, apply_brake, frame//2))
       can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, steer_dir, frame//2))
     
     # ui mesg is at 100Hz but we send asap if:

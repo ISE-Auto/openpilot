@@ -19,7 +19,7 @@ def make_toyota_can_msg(addr, dat, alt, cks=False):
   return [addr, 0, dat, alt]
 
 
-def crc8_trq(data):
+def crc8(data):
   crc = 0xFF    # standard init value
   poly = 0xD5   # standard crc8: x8+x7+x6+x4+x2+1
   size = len(data)
@@ -49,7 +49,27 @@ def create_steer_command(packer, trq_command, enable_steer, direction, idx):
   dat = packer.make_can_msg("STEER_TORQUE_COMMAND", 2, values)[2]
 
   #dat = [ord(i) for i in dat]
-  checksum = crc8_trq(dat[:-1])
+  checksum = crc8(dat[:-1])
   values["CHECKSUM_TRQ"] = checksum
 
-  return packer.make_can_msg("STEER_TORQUE_COMMAND", 2, values)
+  return packer.make_can_msg("STEER_TORQUE_COMMAND", 2, values) #TODO: change this back to bus 0 after tests
+
+def create_brake_command(packer, brake_amount, idx):
+  # same as gas command
+  enable = brake_amount > 0.001
+
+  values = {
+    "ENABLE": enable,
+    "COUNTER_BRAKE": idx & 0xF,
+  }
+
+  if enable:
+    values["BRAKE_COMMAND"] = brake_amount * 255.
+    values["BRAKE_COMMAND2"] = 255.
+
+  dat = packer.make_can_msg("BRAKE_COMMAND", 0, values)[2]
+
+  checksum = crc8(dat[:-1])
+  values["CHECKSUM_BRAKE"] = checksum
+
+  return packer.make_can_msg("BRAKE_COMMAND", 0, values)

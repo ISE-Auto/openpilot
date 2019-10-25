@@ -127,10 +127,11 @@ uint8_t pedal_checksum(uint8_t *dat, int len) {
 // ***************************** can port *****************************
 
 // addresses to be used on CAN
-#define CAN_GAS_INPUT  0x100
-#define CAN_GAS_OUTPUT 0x101U
+#define CAN_GAS_INPUT  0x250
+#define CAN_GAS_OUTPUT 0x251U
 #define CAN_GAS_SIZE 6
 #define COUNTER_CYCLE 0xFU
+#define TRQ_MAX 0x0C0A
 
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
 void CAN1_TX_IRQHandler(void) {
@@ -182,7 +183,7 @@ void CAN1_RX0_IRQHandler(void) {
         dat[i] = GET_BYTE(&CAN->sFIFOMailBox[0], i);
       }
       //value0 is torque, value1 is direction. 0 = none, 8 = left, 15 = right. all other values are invalid.
-      uint16_t value_0 = (dat[0] << 8) | dat[1];
+      int16_t value_0 = (dat[0] << 8) | dat[1];
       uint8_t value_1 = (dat[2]);
       bool enable = ((dat[4] >> 7) & 1U) != 0U;
       uint8_t index = dat[4] & COUNTER_CYCLE;
@@ -194,7 +195,12 @@ void CAN1_RX0_IRQHandler(void) {
             puts("\n");
           #endif
           if (enable) {
-            torque_cmd = (value_0 / 2); //half the input (max 0x0C0A) for 2.5v range
+            if (value_0 > TRQ_MAX){
+              torque_cmd = 0;
+            }
+            else {
+              torque_cmd = value_0;
+            }
             direction = value_1;
           } else {
             // clear the fault state if values are 0

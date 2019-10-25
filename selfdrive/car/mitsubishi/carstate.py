@@ -25,7 +25,9 @@ def get_can_parser(CP):
     ("STATE", "STEER_SENSOR", 0),
     ("INTERCEPTOR_GAS", "GAS_SENSOR", 0),
     ("INTERCEPTOR_GAS2", "GAS_SENSOR", 0),
-    ("BRAKE_PRESSED", "BRAKE_PRESSED", 0),
+    ("STATE", "GAS_SENSOR", 0),
+    ("INTERCEPTOR_BRAKE", "BRAKE_SENSOR", 0),
+    ("STATE", "BRAKE_SENSOR", 0),
     ("WHEEL_SPEED_FL", "ABS_FRONT", 0),
     ("WHEEL_SPEED_FR", "ABS_FRONT", 0),
     ("BRAKE_PEDAL", "ABS_REAR", 0),
@@ -34,8 +36,10 @@ def get_can_parser(CP):
   ]
 
   checks = [
-    #("GAS_SENSOR", 50),
+    ("GAS_SENSOR", 50),
     ("STEER_SENSOR", 50),
+    ("BRAKE_SENSOR", 50),
+    #("STEER_ANGLE_SENSOR", 100),
   ]
 
   return CANParser(DBC[CP.carFingerprint]['pt'], signals, checks, 0)
@@ -74,7 +78,7 @@ class CarState():
     self.door_all_closed = True #not any([cp.vl["SEATS_DOORS"]['DOOR_OPEN_FL'], cp.vl["SEATS_DOORS"]['DOOR_OPEN_FR'],
 #                                     cp.vl["SEATS_DOORS"]['DOOR_OPEN_RL'], cp.vl["SEATS_DOORS"]['DOOR_OPEN_RR']])
     self.seatbelt = True
-    self.brake_pressed = cp.vl["BRAKE_PRESSED"]['BRAKE_PRESSED']
+    self.brake_pressed = (cp.vl["BRAKE_SENSOR"]['INTERCEPTOR_BRAKE'] > 200) #TODO - brake pressed value
 #     if self.CP.enableGasInterceptor:
 #       self.pedal_gas = (cp.vl["GAS_SENSOR"]['INTERCEPTOR_GAS'] + cp.vl["GAS_SENSOR"]['INTERCEPTOR_GAS2']) / 2.
 #     else:
