@@ -43,3 +43,5 @@ openpilot
 notebooks
 xx
 
+selfdrive/controls/lib/longitudinal_mpc/*.so
+selfdrive/controls/lib/longitudinal_mpc/*.o
