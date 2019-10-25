@@ -326,8 +326,8 @@ void pedal(void) {
     // interpolate between fake and real values
     // TODO: implement some other safety functions. this works for now but what about lockups and bit flips??
     if (cycle){ 
-      dac_set(0, (0x60A - torque_cmd));
-      dac_set(1, (0x60A + torque_cmd));
+      dac_set(0, (0x60A - (torque_cmd/2)));
+      dac_set(1, (0x60A + (torque_cmd/2)));
     }
     else if (!cycle){
       dac_set(0, trq0);
