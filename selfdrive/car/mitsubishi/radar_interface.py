@@ -8,7 +8,7 @@ from selfdrive.car.toyota.values import NO_DSU_CAR, DBC, TSS2_CAR
 from selfdrive.car.interfaces import RadarInterfaceBase
 
 def _create_radar_can_parser(car_fingerprint):
-  dbc_f = DBC[car_fingerprint]['radar']
+  dbc_f = 'toyota_adas'
 
   if car_fingerprint in TSS2_CAR:
     RADAR_A_MSGS = list(range(0x180, 0x190))
