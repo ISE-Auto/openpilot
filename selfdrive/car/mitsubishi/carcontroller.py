@@ -15,9 +15,9 @@ ACCEL_SCALE = max(ACCEL_MAX, -ACCEL_MIN)
 
 # Steer torque limits
 class SteerLimitParams:
-  STEER_MAX = 2500
-  STEER_DELTA_UP = 10       # 1.5s time to peak torque
-  STEER_DELTA_DOWN = 25     # always lower than 45 otherwise the Rav4 faults (Prius seems ok with 50)
+  STEER_MAX = 2000
+  STEER_DELTA_UP = 25       # 1.5s time to peak torque
+  STEER_DELTA_DOWN = 50     # always lower than 45 otherwise the Rav4 faults (Prius seems ok with 50)
   STEER_ERROR_MAX = 350     # max delta between torque cmd and torque motor
 
 # Steer angle limits (tested at the Crows Landing track and considered ok)
@@ -114,25 +114,17 @@ class CarController():
     # gas and brake
 
     apply_gas = clip(actuators.gas, 0., 1.)
-    apply_brake = clip(actuators.gas, 0., 1.)
+    apply_brake = clip(actuators.brake, 0., 1.)
 
     # steer torque
     apply_steer = int(round(actuators.steer * SteerLimitParams.STEER_MAX))
     
-    # TODO: determine actual directions and test on an EPS
-    if (apply_steer > 0.0):
-        steer_dir = 0x08
-    elif (apply_steer < 0.0):
-        steer_dir = 0x0F
-    else:
-        steer_dir = 0x0
-
     #only cut torque when steer state is a known fault
     if (CS.steer_state >= 1):
      self.last_fault_frame = frame
 
-    #Cut steering for 2s after fault
-    if not enabled or (frame - self.last_fault_frame < 200):
+    #Cut steering for 0.5s after fault
+    if not enabled or (frame - self.last_fault_frame < 50):
       apply_steer = 0
       apply_steer_req = 0
     else:
@@ -152,8 +144,8 @@ class CarController():
       # This prevents unexpected pedal range rescaling
       can_sends.append(create_gas_command(self.packer, apply_gas, frame//2))
       can_sends.append(create_brake_command(self.packer, apply_brake, frame//2))
-      can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, steer_dir, frame//2))
-    
+    # steering at 100hz
+    can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, frame))
     # ui mesg is at 100Hz but we send asap if:
     # - there is something to display
     # - there is something to stop displaying

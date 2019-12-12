@@ -15,7 +15,7 @@ def toyota_fix(msg, addr):
 
 def make_toyota_can_msg(addr, dat, alt, cks=False):
   if cks:
-    dat = fix(dat, addr)
+    dat = toyota_fix(dat, addr)
   return [addr, 0, dat, alt]
 
 
@@ -33,7 +33,7 @@ def crc8(data):
   return crc
 
 
-def create_steer_command(packer, trq_command, enable_steer, direction, idx):
+def create_steer_command(packer, trq_command, enable_steer, idx):
   # riped from pedal
   enable = enable_steer
 
@@ -44,15 +44,15 @@ def create_steer_command(packer, trq_command, enable_steer, direction, idx):
 
   if enable:
     values["STEER_COMMAND"] = trq_command
-    values["DIRECTION"] = direction
+    values["STEER_COMMAND2"] = trq_command
 
-  dat = packer.make_can_msg("STEER_TORQUE_COMMAND", 2, values)[2]
+  dat = packer.make_can_msg("STEER_TORQUE_COMMAND", 0, values)[2]
 
   #dat = [ord(i) for i in dat]
   checksum = crc8(dat[:-1])
   values["CHECKSUM_TRQ"] = checksum
 
-  return packer.make_can_msg("STEER_TORQUE_COMMAND", 2, values) #TODO: change this back to bus 0 after tests
+  return packer.make_can_msg("STEER_TORQUE_COMMAND", 0, values) #TODO: change this back to bus 0 after tests
 
 def create_brake_command(packer, brake_amount, idx):
   # same as gas command
@@ -65,7 +65,7 @@ def create_brake_command(packer, brake_amount, idx):
 
   if enable:
     values["BRAKE_COMMAND"] = brake_amount * 255.
-    values["BRAKE_COMMAND2"] = 255.
+    values["BRAKE_COMMAND2"] = 0.
 
   dat = packer.make_can_msg("BRAKE_COMMAND", 0, values)[2]
 
