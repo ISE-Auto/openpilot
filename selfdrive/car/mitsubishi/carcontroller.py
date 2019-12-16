@@ -124,7 +124,7 @@ class CarController():
      self.last_fault_frame = frame
 
     #Cut steering for 0.5s after fault
-    if not enabled or (frame - self.last_fault_frame < 50):
+    if not enabled or (frame - self.last_fault_frame < 10):
       apply_steer = 0
       apply_steer_req = 0
     else:

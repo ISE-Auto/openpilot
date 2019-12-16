@@ -1,3 +1,17 @@
+/*
+
+PIN CONFIG:
+
+Pin 15 - PA1 - MOTOR2
+Pin 16 - PA2 - MOTOR1
+Pin 23 - PA7 - CLUTCH
+Pedal IN1 - PC0 - GAS_PRESSED
+Pin 42 -PA9 - ANGLE_SENSOR_PWM
+
+*/
+
+// TODO: implement a PCM_CANCEL
+
 // ********************* Includes *********************
 #include "../config.h"
 #include "libc.h"
@@ -11,21 +25,18 @@
 #include "board.h"
 
 #include "drivers/clock.h"
-// #include "drivers/pwm.h"
+//#include "drivers/dac.h"
 #include "drivers/timer.h"
 
 #include "gpio.h"
-#include "drivers/eeprom.h"
-
-#define CAN_BL_INPUT 0x1
-#define CAN_BL_OUTPUT 0x2
 
 #define CAN CAN1
 
-//#define PEDAL_UART
+//#define PEDAL_USB
 
-#ifdef PEDAL_UART
+#ifdef PEDAL_USB
   #include "drivers/uart.h"
+  #include "drivers/usb.h"
 #else
   // no serial either
   void puts(const char *a) {
@@ -35,9 +46,6 @@
     UNUSED(i);
   }
   void puth2(unsigned int i) {
-    UNUSED(i);
-  }
-  void putch(unsigned int i) {
     UNUSED(i);
   }
 #endif
@@ -52,7 +60,7 @@ void __initialize_hardware_early(void) {
 
 // ********************* serial debugging *********************
 
-#ifdef PEDAL_UART
+#ifdef PEDAL_USB
 
 void debug_ring_callback(uart_ring *ring) {
   char rcv;
@@ -61,10 +69,51 @@ void debug_ring_callback(uart_ring *ring) {
   }
 }
 
+int usb_cb_ep1_in(void *usbdata, int len, bool hardwired) {
+  UNUSED(usbdata);
+  UNUSED(len);
+  UNUSED(hardwired);
+  return 0;
+}
+void usb_cb_ep2_out(void *usbdata, int len, bool hardwired) {
+  UNUSED(usbdata);
+  UNUSED(len);
+  UNUSED(hardwired);
+}
+void usb_cb_ep3_out(void *usbdata, int len, bool hardwired) {
+  UNUSED(usbdata);
+  UNUSED(len);
+  UNUSED(hardwired);
+}
+void usb_cb_enumeration_complete(void) {}
+
+int usb_cb_control_msg(USB_Setup_TypeDef *setup, uint8_t *resp, bool hardwired) {
+  UNUSED(hardwired);
+  unsigned int resp_len = 0;
+  uart_ring *ur = NULL;
+  switch (setup->b.bRequest) {
+    // **** 0xe0: uart read
+    case 0xe0:
+      ur = get_ring_by_number(setup->b.wValue.w);
+      if (!ur) {
+        break;
+      }
+      // read
+      while ((resp_len < MIN(setup->b.wLength.w, MAX_RESP_LEN)) &&
+                         getc(ur, (char*)&resp[resp_len])) {
+        ++resp_len;
+      }
+      break;
+    default:
+      puts("NO HANDLER ");
+      puth(setup->b.bRequest);
+      puts("\n");
+      break;
+  }
+  return resp_len;
+}
+
 #endif
-
-uint32_t eepromdata = 0;
-
 
 // ***************************** pedal can checksum *****************************
 
@@ -86,11 +135,14 @@ uint8_t pedal_checksum(uint8_t *dat, int len) {
   return crc;
 }
 
+uint16_t pwm = 0;
+uint16_t ts_prev = 0;
+
 // ***************************** can port *****************************
 
 // addresses to be used on CAN
-#define CAN_GAS_INPUT  0x100
-#define CAN_GAS_OUTPUT 0x101U
+#define CAN_GAS_INPUT  0x450
+#define CAN_GAS_OUTPUT 0x451U
 #define CAN_GAS_SIZE 6
 #define COUNTER_CYCLE 0xFU
 
@@ -117,17 +169,6 @@ uint32_t current_index = 0;
 #define FAULT_INVALID 6U
 uint8_t state = FAULT_STARTUP;
 
-void bl_can_send(uint8_t *odat) {
-  // wait for send
-  while (!(CAN->TSR & CAN_TSR_TME0));
-
-  // send continue
-  CAN->sTxMailBox[0].TDLR = ((uint32_t*)odat)[0];
-  CAN->sTxMailBox[0].TDHR = ((uint32_t*)odat)[1];
-  CAN->sTxMailBox[0].TDTR = 8;
-  CAN->sTxMailBox[0].TIR = (CAN_BL_OUTPUT << 21) | 1;
-}
-
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
 void CAN1_RX0_IRQHandler(void) {
   while ((CAN->RF0R & CAN_RF0R_FMP0) != 0) {
@@ -144,11 +185,11 @@ void CAN1_RX0_IRQHandler(void) {
         } else if (GET_BYTES_48(&CAN->sFIFOMailBox[0]) == 0x02b00b1e) {
           enter_bootloader_mode = ENTER_BOOTLOADER_MAGIC;
           NVIC_SystemReset();
-        }else {
+        } else {
           puts("Failed entering Softloader or Bootloader\n");
         }
       }
-    
+
       // normal packet
       uint8_t dat[8];
       for (int i=0; i<8; i++) {
@@ -187,19 +228,11 @@ void CAN1_RX0_IRQHandler(void) {
         state = FAULT_BAD_CHECKSUM;
       }
     }
-    if (address == CAN_BL_INPUT) {
-      uint8_t dat[8];
-      for (int i = 0; i < 8; i++) {
-        dat[i] = GET_BYTE(&CAN->sFIFOMailBox[0], i);
-        putch(dat[i]);
-      }
-      //uint8_t odat[8];
-      bl_can_send(dat);
-     }
     // next
     CAN->RF0R |= CAN_RF0R_RFOM0;
   }
 }
+
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
 void CAN1_SCE_IRQHandler(void) {
   state = FAULT_SCE;
@@ -212,25 +245,35 @@ unsigned int pkt_idx = 0;
 
 int led_value = 0;
 
-// uint16_t pwm_val = 0;
+// PWM output interrupt logic lifted from white Panda started check
 
-// int32_t pwmch0_output = 0;
-// uint32_t pwmch1_output = 0;
-// uint32_t pwmch2_output = 0;
-// bool dir = false;
+void started_interrupt_handler(uint8_t interrupt_line) {
+  volatile unsigned int pr = EXTI->PR & (1U << interrupt_line);
+  if ((pr & (1U << interrupt_line)) != 0U) {
+    #ifdef DEBUG
+      puts("got started interrupt\n");
+    #endif
 
-// void TIM2_IRQHandler(void)
-// {
-//   //sets the PWM channel values on a clock interrupt
-//   if (TIM2->SR & TIM_SR_UIF) // if UIF flag is set
-//   {
-//     TIM2->SR &= ~TIM_SR_UIF; // clear UIF flag
-//     // TODO: for some reason, i can't set PWM in a seperate function
-//     // TIM2->CCR2 = pwmch0_output;
-//     // TIM2->CCR3 = pwmch1_output;
-//     // TIM2->CCR4 = pwmch2_output;
-//   }
-// }
+    // // jenky debounce
+    delay(100);
+
+    // check GPIO status
+    bool edge = get_gpio_input(GPIOA, 9);
+    if (edge){
+      ts_prev = TIM2->CNT;
+      EXTI->PR = (1U << interrupt_line);
+    }
+    if (!edge){ 
+      pwm = 0xFFF - (TIM2->CNT - ts_prev);
+      EXTI->PR = (1U << interrupt_line);
+    }
+  }
+}
+
+// cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
+void EXTI9_5_IRQHandler(void) {
+  started_interrupt_handler(9);
+}
 
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
 void TIM3_IRQHandler(void) {
@@ -248,8 +291,8 @@ void TIM3_IRQHandler(void) {
     uint8_t dat[8];
     dat[0] = (pdl0 >> 8) & 0xFFU;
     dat[1] = (pdl0 >> 0) & 0xFFU;
-    dat[2] = (pdl1 >> 8) & 0xFFU;
-    dat[3] = (pdl1 >> 0) & 0xFFU;
+    dat[2] = (uint8_t)(pwm >> 8) & 0xFFU;
+    dat[3] = (uint8_t)(pwm >> 0) & 0xFFU;
     dat[4] = ((state & 0xFU) << 4) | pkt_idx;
     dat[5] = pedal_checksum(dat, CAN_GAS_SIZE - 1);
     CAN->sTxMailBox[0].TDLR = dat[0] | (dat[1] << 8) | (dat[2] << 16) | (dat[3] << 24);
@@ -280,31 +323,44 @@ void TIM3_IRQHandler(void) {
   }
 }
 
-
-uint8_t bytebuf[260];
-uint8_t data[256];
-
 // ***************************** main code *****************************
 
 void pedal(void) {
+  // function below sets the gpio
+  // set_gpio_output
   // read/write
-  // pdl0 = adc_get(ADCCHAN_ACCEL0);
-  // pdl1 = adc_get(ADCCHAN_ACCEL1);
+  pdl0 = adc_get(ADCCHAN_ACCEL0);
+  pdl1 = adc_get(ADCCHAN_ACCEL1);
 
   // write the pedal to the DAC
-  // for now let's do nothing instead.
-  // TODO: motor controls based on torque
-  if (state == NO_FAULT) {
-    // dac_set(0, MAX(gas_set_0, pdl0));
-    // dac_set(1, MAX(gas_set_1, pdl1));
+  // if (state == NO_FAULT) {
+    //compare requested angle with current angle and JUST DO IT!
+    // low <= x && x <= high
+    if (gas_set_0 > 0xF){
+      set_gpio_output(GPIOA, 7, 1);
+      // set the coil ON
+      if (pwm <= (gas_set_0 - 10)){
+        // we are below requested accel
+        set_gpio_output(GPIOA, 1, 0);
+        set_gpio_output(GPIOA, 2, 1);
+      }
+      if((gas_set_0 + 10) <= pwm){
+        //we are above requested accel
+        set_gpio_output(GPIOA, 1, 1);
+        set_gpio_output(GPIOA, 2, 0);
+      }
+      if ((gas_set_0 - 10) <= pwm && pwm <= (gas_set_0 + 10)){
+        //we at requested accel
+        set_gpio_output(GPIOA, 1, 0);
+        set_gpio_output(GPIOA, 2, 0);  
+      }
+   //}
   } else {
-    // dac_set(0, pdl0);
-    // dac_set(1, pdl1);
-  }
-  // pwmch1_output+=5;
-  // if(pwmch1_output >= 0xFF){
-  //   pwmch1_output = 0;
-  // }
+    set_gpio_output(GPIOA, 1, 0);
+    set_gpio_output(GPIOA, 2, 0);
+    set_gpio_output(GPIOA, 7, 0);
+    }
+
   watchdog_feed();
 }
 
@@ -317,34 +373,32 @@ int main(void) {
   detect_configuration();
   detect_board_type();
 
-  // pwm_init();
+  // Setup angle sensor interrupts
+  SYSCFG->EXTICR[1] = SYSCFG_EXTICR3_EXTI9_PA;
+  EXTI->IMR |= (1U << 9);
+  EXTI->RTSR |= (1U << 9);
+  EXTI->FTSR |= (1U << 9);
+  NVIC_EnableIRQ(EXTI9_5_IRQn);
 
-  // timer_init(TIM2, 240);
-
-  // TIM2->CCR3 = 0xFFFF;
-  // TIM2->CCR3 = 0xFFFF;
-  // TIM2->CCR4 = 0xFFFF;
-
-  // NVIC_EnableIRQ(TIM2_IRQn);
-
-    // A4,A5,A6,A7: setup SPI
-  set_gpio_alternate(GPIOA, 4, GPIO_AF5_SPI1);
-  set_gpio_alternate(GPIOA, 5, GPIO_AF5_SPI1);
-  set_gpio_alternate(GPIOA, 6, GPIO_AF5_SPI1);
-  set_gpio_alternate(GPIOA, 7, GPIO_AF5_SPI1);
-
-
-  // A2, A3: USART 2 for debugging
-  // set_gpio_alternate(GPIOA, 2, GPIO_AF7_USART2);
-  // set_gpio_alternate(GPIOA, 3, GPIO_AF7_USART2);
+  // init microsecond system timer
+  // increments 1000000 times per second
+  // generate an update to set the prescaler
+  TIM2->PSC = 48-1;
+  TIM2->CR1 = TIM_CR1_CEN;
+  TIM2->EGR = TIM_EGR_UG;
+  // use TIM2->CNT to read
 
   // init board
   current_board->init();
 
-#ifdef PEDAL_UART
-  // enable uart
-  uart_init(USART2, 115200);
+#ifdef PEDAL_USB
+  // enable USB
+  usb_init();
 #endif
+
+  // pedal stuff
+  // dac_init();
+  adc_init();
 
   // init can
   bool llcan_speed_set = llcan_set_speed(CAN1, 5000, false, false);
@@ -355,52 +409,17 @@ int main(void) {
   llcan_init(CAN1);
 
   // 48mhz / 65536 ~= 732
-  // timer_init(TIM3, 15);
-  // NVIC_EnableIRQ(TIM3_IRQn);
+  timer_init(TIM3, 15);
+  NVIC_EnableIRQ(TIM3_IRQn);
 
-  // spi eeprom
-  eeprom_init();
-
-  //watchdog_init();
+  watchdog_init();
 
   puts("**** INTERRUPTS ON ****\n");
   enable_interrupts();
+
   // main pedal loop
-
-  //let's write the EEPROM!
-  eeprom_write_enable(WRDI);
-  delay(10);
-  eeprom_write_enable(WREN);
-  delay(10);
-
-  for(int ii=0; ii<=255; ii++){
-    data[ii]=ii;
-  }
-
-  //eeprom_write(bytebuf, 0x0, data);
-  eeprom_instruction(bytebuf, WRSR, 0x41);
-  eeprom_write(bytebuf, 0x0, data);
-
   while (1) {
-    // pwmch1_output+=32;
-    // if(pwmch1_output >= 0xFFFF){
-    //   pwmch1_output = 0;
-    // }
-    // TIM2->CCR3 = pwmch1_output;
-    //eeprom_read(bytebuf, 0x01);
     pedal();
-    for(int ii=0; ii<=0x20; ii++){
-      eeprom_read(bytebuf, ii);
-      delay(1000);
-    }
-    delay(100);
-    // eeprom_instruction(bytebuf, RDID, 0xFF);
-    // eeprom_write_enable(WRDI);
-    // delay(100);
-    // eeprom_write_enable(WREN);
-    // delay(100);
-    // eeprom_instruction(bytebuf, RDSR, 0xFF);
-    // delay(100);
   }
 
   return 0;

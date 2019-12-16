@@ -17,7 +17,7 @@ struct lookup_t {
 const int TRQ_MAX = 2000;
 // rate based torque limit + stay within actually applied
 // packet is sent at 100hz, so this limit is 1000/sec
-const int MAX_RATE = 150;        // ramp up
+const int MAX_RATE = 250;        // ramp up and down
 const int MAX_TORQUE_ERROR = 400;  // max torque cmd in excess of torque motor
 
 // real time torque limit to prevent controls spamming
