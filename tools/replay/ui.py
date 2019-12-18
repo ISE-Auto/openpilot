@@ -16,7 +16,7 @@ from common.transformations.model import (MODEL_CX, MODEL_CY, MODEL_INPUT_SIZE,
 from selfdrive.car.toyota.interface import CarInterface as ToyotaInterface
 from selfdrive.config import UIParams as UP
 from selfdrive.controls.lib.vehicle_model import VehicleModel
-import selfdrive.messaging as messaging
+import cereal.messaging as messaging
 from tools.replay.lib.ui_helpers import (_BB_TO_FULL_FRAME, BLACK, BLUE, GREEN,
                                          YELLOW, RED,
                                          CalibrationTransformsForWarpMatrix,
@@ -67,7 +67,7 @@ def ui_thread(addr, frame_address):
   top_down_surface = pygame.surface.Surface((UP.lidar_x, UP.lidar_y),0,8)
 
   frame = messaging.sub_sock('frame', addr=addr, conflate=True)
-  sm = messaging.SubMaster(['carState', 'plan', 'carControl', 'radarState', 'liveCalibration', 'controlsState', 'liveTracks', 'model', 'liveMpc', 'liveParameters', 'pathPlan'])
+  sm = messaging.SubMaster(['carState', 'plan', 'carControl', 'radarState', 'liveCalibration', 'controlsState', 'liveTracks', 'model', 'liveMpc', 'liveParameters', 'pathPlan'], addr=addr)
 
   calibration = None
   img = np.zeros((480, 640, 3), dtype='uint8')
@@ -179,9 +179,10 @@ def ui_thread(addr, frame_address):
     plot_arr[-1, name_to_arr_idx['accel_override']] = sm['carControl'].cruiseControl.accelOverride
 
     # ***** model ****
-    model_data = extract_model_data(sm['model'])
-    plot_model(model_data, VM, sm['controlsState'].vEgo, sm['controlsState'].curvature, imgw, calibration,
-                top_down, np.array(sm['pathPlan'].dPoly))
+    if len(sm['model'].path.poly) > 0:
+      model_data = extract_model_data(sm['model'])
+      plot_model(model_data, VM, sm['controlsState'].vEgo, sm['controlsState'].curvature, imgw, calibration,
+                  top_down, np.array(sm['pathPlan'].dPoly))
 
     # MPC
     if sm.updated['liveMpc']:
@@ -269,4 +270,9 @@ def get_arg_parser():
 
 if __name__ == "__main__":
   args = get_arg_parser().parse_args(sys.argv[1:])
+
+  if args.ip_address != "127.0.0.1":
+    os.environ["ZMQ"] = "1"
+    messaging.context = messaging.Context()
+
   ui_thread(args.ip_address, args.frame_address)

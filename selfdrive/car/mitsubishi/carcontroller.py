@@ -3,7 +3,7 @@ from common.numpy_fast import clip
 from selfdrive.car import create_gas_command
 from selfdrive.car.mitsubishi.mitsubishican import make_toyota_can_msg, create_steer_command, create_brake_command
 from selfdrive.car.mitsubishi.values import ECU, STATIC_MSGS
-from selfdrive.can.packer import CANPacker
+from opendbc.can.packer import CANPacker
 
 VisualAlert = car.CarControl.HUDControl.VisualAlert
 

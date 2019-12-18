@@ -17,7 +17,11 @@ Pin 42 -PA9 - ANGLE_SENSOR_PWM
 #include "libc.h"
 
 #include "main_declarations.h"
+#include "critical.h"
+#include "faults.h"
 
+#include "drivers/registers.h"
+#include "drivers/interrupts.h"
 #include "drivers/llcan.h"
 #include "drivers/llgpio.h"
 #include "drivers/adc.h"
@@ -148,7 +152,7 @@ uint16_t ts_prev = 0;
 #define COUNTER_CYCLE 0xFU
 
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
-void CAN1_TX_IRQHandler(void) {
+void CAN1_TX_IRQ_Handler(void) {
   // clear interrupt
   CAN->TSR |= CAN_TSR_RQCP0;
 }
@@ -171,7 +175,7 @@ uint32_t current_index = 0;
 uint8_t state = FAULT_STARTUP;
 
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
-void CAN1_RX0_IRQHandler(void) {
+void CAN1_RX0_IRQ_Handler(void) {
   while ((CAN->RF0R & CAN_RF0R_FMP0) != 0) {
     #ifdef DEBUG
       puts("CAN RX\n");
@@ -235,7 +239,7 @@ void CAN1_RX0_IRQHandler(void) {
 }
 
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
-void CAN1_SCE_IRQHandler(void) {
+void CAN1_SCE_IRQ_Handler(void) {
   state = FAULT_SCE;
   llcan_clear_send(CAN);
 }
@@ -272,12 +276,12 @@ void started_interrupt_handler(uint8_t interrupt_line) {
 }
 
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
-void EXTI9_5_IRQHandler(void) {
+void EXTI9_5_IRQ_Handler(void) {
   started_interrupt_handler(9);
 }
 
 // cppcheck-suppress unusedFunction ; used in headers not included in cppcheck
-void TIM3_IRQHandler(void) {
+void TIM3_IRQ_Handler(void) {
   #ifdef DEBUG
     puth(TIM3->CNT);
     puts(" ");
@@ -366,6 +370,16 @@ void pedal(void) {
 }
 
 int main(void) {
+  // Init interrupt table
+  init_interrupts(true);
+
+  REGISTER_INTERRUPT(CAN1_TX_IRQn, CAN1_TX_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_1)
+  REGISTER_INTERRUPT(CAN1_RX0_IRQn, CAN1_RX0_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_1)
+  REGISTER_INTERRUPT(CAN1_SCE_IRQn, CAN1_SCE_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_1)
+
+  // Should run at around 732Hz (see init below)
+  REGISTER_INTERRUPT(TIM3_IRQn, TIM3_IRQ_Handler, 1000U, FAULT_INTERRUPT_RATE_TIM3)
+
   disable_interrupts();
 
   // init devices
@@ -375,10 +389,7 @@ int main(void) {
   detect_board_type();
 
   // Setup angle sensor interrupts
-  SYSCFG->EXTICR[1] = SYSCFG_EXTICR3_EXTI9_PA;
-  EXTI->IMR |= (1U << 9);
-  EXTI->RTSR |= (1U << 9);
-  EXTI->FTSR |= (1U << 9);
+  REGISTER_INTERRUPT(EXTI9_5_IRQn, EXTI9_5_IRQ_Handler, 700U, FAULT_INTERRUPT_RATE_TACH)
   NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   // init microsecond system timer

@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 import zmq
-from selfdrive.services import service_list
+from cereal.services import service_list
 from selfdrive.config import Conversions as CV
-import selfdrive.messaging as messaging
+import cereal.messaging as messaging
 
 
 if __name__ == "__main__":

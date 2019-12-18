@@ -1,8 +1,8 @@
 from cereal import car
 from common.numpy_fast import mean
 from common.kalman.simple_kalman import KF1D
-from selfdrive.can.can_define import CANDefine
-from selfdrive.can.parser import CANParser
+from opendbc.can.can_define import CANDefine
+from opendbc.can.parser import CANParser
 from selfdrive.config import Conversions as CV
 from selfdrive.car.mitsubishi.values import DBC, STEER_THRESHOLD #, NO_DSU_CAR, CAR, 
 # from selfdrive.udp.udpserver import Server

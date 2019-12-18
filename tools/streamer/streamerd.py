@@ -14,8 +14,8 @@ from collections import deque
 # sudo pip install git+git://github.com/mikeboers/PyAV.git
 import av
 
-import selfdrive.messaging as messaging
-from selfdrive.services import service_list
+import cereal.messaging as messaging
+from cereal.services import service_list
 
 PYGAME = os.getenv("PYGAME") is not None
 if PYGAME:

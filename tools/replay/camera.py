@@ -16,8 +16,8 @@ from collections import namedtuple
 from cereal import car
 from common.params import Params
 from tools.lib.lazy_property import lazy_property
-from selfdrive.messaging import sub_sock, recv_one_or_none, recv_one
-from selfdrive.services import service_list
+from cereal.messaging import sub_sock, recv_one_or_none, recv_one
+from cereal.services import service_list
 
 _BB_OFFSET = 0, 0
 _BB_TO_FULL_FRAME = np.asarray([[1., 0., _BB_OFFSET[0]], [0., 1., _BB_OFFSET[1]],
