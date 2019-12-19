@@ -36,8 +36,8 @@ FINGERPRINTS = {
   }],
 }
 
-STEER_THRESHOLD = 100
+STEER_THRESHOLD = 0.5
 
 DBC = {
-   CAR.MIEV: dbc_dict('mitsubishi_miev_can', 'toyota_adas'),
+   CAR.MIEV: dbc_dict('toyota_celica_2003_can', 'toyota_adas'),
 }

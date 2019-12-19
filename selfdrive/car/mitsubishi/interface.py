@@ -121,26 +121,45 @@ class CarInterface(CarInterfaceBase):
 
       self.CS.update(self.cp)
 
+    # get basic data from phone and gps since no wheel speeds
+    # TODO: speed sensor from VSS
+
+    sensors = messaging.recv_sock(self.sensor)
+    if sensors is not None:
+      for sensor in sensors.sensorEvents:
+        if sensor.type == 4:  # gyro
+          self.yaw_rate_meas = -sensor.gyro.v[0]
+
+    gps = messaging.recv_sock(self.gps)
+    if gps is not None:
+      self.prev_speed = self.speed
+      self.speed = gps.gpsLocation.speed
+
       # create message
       ret = car.CarState.new_message()
       ret.canValid = True
+  
       # speeds
-      ret.vEgo = self.CS.v_ego
-      ret.vEgoRaw = self.CS.v_ego_raw
-      ret.aEgo = self.CS.a_ego
-      ret.yawRate = self.VM.yaw_rate(self.CS.angle_steers * CV.DEG_TO_RAD, self.CS.v_ego)
-      ret.standstill = self.CS.standstill
+      ret.vEgo = self.speed #self.CS.v_ego
+      ret.vEgoRaw = self.speed #self.CS.v_ego_raw
+      
+      a = self.speed - self.prev_speed
+      ret.aEgo = a
+
+      self.yawRate = LPG * self.yaw_rate_meas + (1. - LPG) * self.yaw_rate
+      ret.yawRate = self.yawRate #self.VM.yaw_rate(self.CS.angle_steers * CV.DEG_TO_RAD, self.CS.v_ego)
+      ret.standstill = self.speed < 0.01 #self.CS.standstill
 
       # gear shifter
       ret.gearShifter = self.CS.gear_shifter
 
       # gas pedal
       ret.gas = self.CS.car_gas
-      ret.gasPressed = self.CS.pedal_gas > 0
+      ret.gasPressed = self.CS.pedal_gas > 50
 
       # brake pedal
       ret.brake = self.CS.user_brake
-      ret.brakePressed = False #self.CS.brake_pressed != 0
+      ret.brakePressed = self.CS.brake_pressed != 0
       ret.brakeLights = False #self.CS.brake_lights
 
       # steering wheel
@@ -152,8 +171,8 @@ class CarInterface(CarInterfaceBase):
 
       # cruise state
       ret.cruiseState.enabled = self.CS.pcm_acc_active
-      ret.cruiseState.speed = self.CS.v_cruise_pcm * CV.KPH_TO_MS
-      ret.cruiseState.available = bool(self.CS.main_on)
+      ret.cruiseState.speed = self.speed if not self.CS.pcm_acc_active #self.CS.v_cruise_pcm * CV.KPH_TO_MS
+      ret.cruiseState.available = True #bool(self.CS.main_on)
       ret.cruiseState.speedOffset = 0.
       ret.cruiseState.standstill = False
       ret.doorOpen = False #not self.CS.door_all_closed
@@ -176,13 +195,8 @@ class CarInterface(CarInterfaceBase):
         events.append(create_event('reverseGear', [ET.NO_ENTRY, ET.IMMEDIATE_DISABLE]))
       if self.CS.steer_error:
         events.append(create_event('steerTempUnavailable', [ET.NO_ENTRY, ET.WARNING]))
-#     if self.CS.low_speed_lockout and self.CP.enableDsu:
-#       events.append(create_event('lowSpeedLockout', [ET.NO_ENTRY, ET.PERMANENT]))
       if ret.vEgo < self.CP.minEnableSpeed and self.CP.enableDsu:
         events.append(create_event('speedTooLow', [ET.NO_ENTRY]))
-#       if c.actuators.gas > 0.1:
-#         # some margin on the actuator to not false trigger cancellation while stopping
-#         events.append(create_event('speedTooLow', [ET.IMMEDIATE_DISABLE]))
         if ret.vEgo < 0.001:
           # while in standstill, send a user alert
           events.append(create_event('manualRestart', [ET.WARNING]))
