@@ -105,7 +105,7 @@ class CarState():
     self.steer_error = cp.vl["STEER_SENSOR"]['STATE'] not in [0]
     self.ipas_active = False
     self.brake_error = 0
-    self.steer_torque_driver = cp.vl["STEER_SENSOR"]['INTERCEPTOR_TRQ']) - cp.vl['STEER_SENSOR']['INTERCEPTOR_TRQ2']
+    self.steer_torque_driver = cp.vl["STEER_SENSOR"]['INTERCEPTOR_TRQ'] - cp.vl['STEER_SENSOR']['INTERCEPTOR_TRQ2']
     self.steer_torque_motor = cp.vl["STEER_TORQUE_SENSOR"]["STEER_TORQUE_EPS"]
 #     # we could use the override bit from dbc, but it's triggered at too high torque values
     self.steer_override = abs(self.steer_torque_driver) > STEER_THRESHOLD

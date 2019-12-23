@@ -95,7 +95,7 @@ class CarController():
     self.accel_steady = 0.
     self.car_fingerprint = car_fingerprint
     self.alert_active = False
-    self.last_standstill = False
+    #self.last_standstill = False
     self.standstill_req = False
     self.angle_control = False
     self.steer_angle_enabled = False
@@ -135,7 +135,7 @@ class CarController():
     #  pcm_cancel_cmd = 1
 
     self.last_steer = apply_steer
-    self.last_standstill = CS.standstill
+    #self.last_standstill = CS.standstill
 
     can_sends = []
 

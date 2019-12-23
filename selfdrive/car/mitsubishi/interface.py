@@ -9,6 +9,15 @@ from selfdrive.car.mitsubishi.carstate import CarState, get_can_parser
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, is_ecu_disconnected, gen_empty_fingerprint
 from selfdrive.swaglog import cloudlog
 from selfdrive.car.interfaces import CarInterfaceBase
+import cereal.messaging as messaging
+
+# lifted from mock car because no speed sensor.. TODO: add speed sensor
+# mocked car interface to work with chffrplus
+TS = 0.01  # 100Hz
+YAW_FR = 0.2 # ~0.8s time constant on yaw rate filter
+# low pass gain
+LPG = 2 * 3.1415 * YAW_FR * TS / (1 + 2 * 3.1415 * YAW_FR * TS)
+
 
 class CarInterface(CarInterfaceBase):
    def __init__(self, CP, CarController):
@@ -31,6 +40,16 @@ class CarInterface(CarInterfaceBase):
      self.CC = None
      if CarController is not None:
        self.CC = CarController(self.cp.dbc_name, CP.carFingerprint, CP.enableCamera, CP.enableDsu, CP.enableApgs)
+
+     self.sensor = messaging.sub_sock('sensorEvents')
+     self.gps = messaging.sub_sock('gpsLocation')
+
+     self.speed = 0.
+     self.prev_speed = 0.
+     self.yaw_rate = 0.
+     self.yaw_rate_meas = 0.
+     
+     self.cruisespeed = 0.
 
    @staticmethod
    def compute_gb(accel, speed):
@@ -124,16 +143,16 @@ class CarInterface(CarInterfaceBase):
     # get basic data from phone and gps since no wheel speeds
     # TODO: speed sensor from VSS
 
-    sensors = messaging.recv_sock(self.sensor)
-    if sensors is not None:
-      for sensor in sensors.sensorEvents:
-        if sensor.type == 4:  # gyro
-          self.yaw_rate_meas = -sensor.gyro.v[0]
+      sensors = messaging.recv_sock(self.sensor)
+      if sensors is not None:
+        for sensor in sensors.sensorEvents:
+          if sensor.type == 4:  # gyro
+            self.yaw_rate_meas = -sensor.gyro.v[0]
 
-    gps = messaging.recv_sock(self.gps)
-    if gps is not None:
-      self.prev_speed = self.speed
-      self.speed = gps.gpsLocation.speed
+      gps = messaging.recv_sock(self.gps)
+      if gps is not None:
+        self.prev_speed = self.speed
+        self.speed = gps.gpsLocation.speed
 
       # create message
       ret = car.CarState.new_message()
@@ -170,8 +189,10 @@ class CarInterface(CarInterfaceBase):
       ret.steeringPressed = self.CS.steer_override
 
       # cruise state
+      if not self.CS.pcm_acc_active:
+        self.cruisespeed = self.speed
       ret.cruiseState.enabled = self.CS.pcm_acc_active
-      ret.cruiseState.speed = self.speed if not self.CS.pcm_acc_active #self.CS.v_cruise_pcm * CV.KPH_TO_MS
+      ret.cruiseState.speed = self.cruisespeed #self.CS.v_cruise_pcm * CV.KPH_TO_MS
       ret.cruiseState.available = True #bool(self.CS.main_on)
       ret.cruiseState.speedOffset = 0.
       ret.cruiseState.standstill = False
