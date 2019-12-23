@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-from common.realtime import sec_since_boot
+# from common.realtime import sec_since_boot
 from cereal import car
 from selfdrive.config import Conversions as CV
 from selfdrive.controls.lib.drive_helpers import EventTypes as ET, create_event
 from selfdrive.controls.lib.vehicle_model import VehicleModel
 from selfdrive.car.mitsubishi.carstate import CarState, get_can_parser
-#from selfdrive.car.mitsubishi.values import ECU, check_ecu_msgs, CAR
-from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, is_ecu_disconnected, gen_empty_fingerprint
+# from selfdrive.car.mitsubishi.values import ECU, check_ecu_msgs, CAR
+# from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, is_ecu_disconnected, gen_empty_fingerprint
 from selfdrive.swaglog import cloudlog
 from selfdrive.car.interfaces import CarInterfaceBase
 import cereal.messaging as messaging
@@ -192,8 +192,8 @@ class CarInterface(CarInterfaceBase):
       if not self.CS.pcm_acc_active:
         self.cruisespeed = self.speed
       ret.cruiseState.enabled = self.CS.pcm_acc_active
-      ret.cruiseState.speed = self.cruisespeed #self.CS.v_cruise_pcm * CV.KPH_TO_MS
-      ret.cruiseState.available = True #bool(self.CS.main_on)
+      ret.cruiseState.speed = self.cruisespeed + self.CS.speed_offset #self.CS.v_cruise_pcm * CV.KPH_TO_MS
+      ret.cruiseState.available = bool(self.CS.main_on)
       ret.cruiseState.speedOffset = 0.
       ret.cruiseState.standstill = False
       ret.doorOpen = False #not self.CS.door_all_closed

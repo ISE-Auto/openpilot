@@ -1,9 +1,9 @@
-from cereal import car
-from common.numpy_fast import mean
+# from cereal import car
+# from common.numpy_fast import mean
 from common.kalman.simple_kalman import KF1D
 from opendbc.can.can_define import CANDefine
 from opendbc.can.parser import CANParser
-from selfdrive.config import Conversions as CV
+# from selfdrive.config import Conversions as CV
 from selfdrive.car.mitsubishi.values import DBC, STEER_THRESHOLD #, NO_DSU_CAR, CAR, 
 # from selfdrive.udp.udpserver import Server
 
@@ -15,6 +15,7 @@ def get_can_parser(CP):
 
   signals = [
     # sig_name, sig_address, default
+    ("CRUISE_BUTTONS", "CRUISE_STALK", 0),
     ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
     ("STEER_RATE", "STEER_ANGLE_SENSOR", 0),
     ("INTERCEPTOR_TRQ", "STEER_SENSOR", 0),
@@ -32,7 +33,7 @@ def get_can_parser(CP):
     ("GAS_SENSOR", 50),
     ("STEER_SENSOR", 50),
     ("BRAKE_SENSOR", 50),
-    ("STEER_ANGLE_SENSOR", 100),
+    ("STEER_ANGLE_SENSOR", 50),
   ]
 
   return CANParser(DBC[CP.carFingerprint]['pt'], signals, checks, 0)
@@ -44,8 +45,6 @@ class CarState():
     self.can_define = CANDefine(DBC[CP.carFingerprint]['pt'])
     print("DBC PARSED: %s" % DBC[CP.carFingerprint]['pt'])
     self.shifter_values = 'D' #self.can_define.dv["GEAR_PACKET"]['GEAR']
-
-    self.ENGAGED = False
 
      # initialize can parser
     self.car_fingerprint = CP.carFingerprint
@@ -59,9 +58,12 @@ class CarState():
                          C=[1.0, 0.0],
                          K=[[0.12287673], [0.29666309]])
     self.v_ego = 0.0
-    self.pcm_acc_status = 0
+    self.pcm_acc_on = False
     self.pcm_acc_active = False
+    self.pcm_acc_status = 0
     self.v_cruise_pcm = 0
+    self.speed_offset = 0
+    self.cruise_button_state_last = 0
 
   def update(self, cp):
     # update prevs, update must run once per loop
@@ -112,9 +114,36 @@ class CarState():
 
     self.user_brake = 0
 
-    #cruise control
-    self.pcm_acc_active = (not self.brake_pressed) and (self.pedal_gas < 50)
+    # cruise control
+    cruise_button_state = cp.vl["CRUISE_STALK"]['CRUISE_BUTTONS']
+    # self.pcm_acc_active = (not self.brake_pressed) and (self.pedal_gas < 50)
 
+    # only change states if button state changed
+    # welcome to IF hell. TODO: take some time and do this better
+    if cruise_button_state != self.cruise_button_state_last:
+      if cruise_button_state == 0x0f:
+        self.main_on = not self.main_on
+      if self.main_on:
+        # only change these other states if main_on AND the state changed.
+        if cruise_button_state == 0x0a:
+          if self.pcm_acc_active: 
+            self.speed_offset -= 1.
+          else:
+            self.pcm_acc_active = True
+            self.pcm_acc_status = 1
+        elif cruise_button_state == 0x0e:
+          if self.pcm_acc_active:
+            self.speed_offset += 1.
+          elif self.pcm_acc_status == 1:
+            self.pcm_acc_active = True       
+        elif cruise_button_state == 0x07:
+          self.pcm_acc_active = False
+    if not self.main_on:
+      self.speed_offset = 0
+      self.pcm_acc_status = 0
+    self.cruise_button_state_last = cruise_button_state
+    self.main_on = self.pcm_acc_on
+    
     # if not self.pcm_acc_active:
     #   self.pcm_acc_status = not self.user_brake #cruise activates as soon as user stops pressing the brake
     #   self.v_cruise_pcm = cp.vl["COMBOMETER"]["SPEED"]
