@@ -52,3 +52,5 @@ panda_jungle
 .coverage*
 htmlcov
 
+selfdrive/controls/lib/longitudinal_mpc/*.so
+selfdrive/controls/lib/longitudinal_mpc/*.o
