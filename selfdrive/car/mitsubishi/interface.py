@@ -208,19 +208,19 @@ class CarInterface(CarInterfaceBase):
       events.append(create_event('doorOpen', [ET.NO_ENTRY, ET.SOFT_DISABLE]))
     if ret.seatbeltUnlatched:
       events.append(create_event('seatbeltNotLatched', [ET.NO_ENTRY, ET.SOFT_DISABLE]))
-    if self.CS.esp_disabled and self.CP.enableDsu:
-      events.append(create_event('espDisabled', [ET.NO_ENTRY, ET.SOFT_DISABLE]))
+    # if self.CS.esp_disabled and self.CP.enableDsu:
+    #   events.append(create_event('espDisabled', [ET.NO_ENTRY, ET.SOFT_DISABLE]))
     # if not self.CS.main_on and self.CP.enableDsu:
     #   events.append(create_event('wrongCarMode', [ET.NO_ENTRY, ET.USER_DISABLE]))
     if ret.gearShifter == 'reverse' and self.CP.enableDsu:
       events.append(create_event('reverseGear', [ET.NO_ENTRY, ET.IMMEDIATE_DISABLE]))
     if self.CS.steer_error:
       events.append(create_event('steerTempUnavailable', [ET.NO_ENTRY, ET.WARNING]))
-    if ret.vEgo < self.CP.minEnableSpeed and self.CP.enableDsu:
-      events.append(create_event('speedTooLow', [ET.NO_ENTRY]))
-      if ret.vEgo < 0.001:
-        # while in standstill, send a user alert
-        events.append(create_event('manualRestart', [ET.WARNING]))
+    # if ret.vEgo < self.CP.minEnableSpeed and self.CP.enableDsu:
+    #   events.append(create_event('speedTooLow', [ET.NO_ENTRY]))
+    #   if ret.vEgo < 0.001:
+    #     # while in standstill, send a user alert
+    #     events.append(create_event('manualRestart', [ET.WARNING]))
 
     ret.events = events
 
