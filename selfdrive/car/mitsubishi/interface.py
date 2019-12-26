@@ -156,7 +156,7 @@ class CarInterface(CarInterfaceBase):
 
     # create message
     ret = car.CarState.new_message()
-    ret.canValid = True
+    ret.canValid = self.cp.can_valid
 
     # speeds
     ret.vEgo = self.speed #self.CS.v_ego
