@@ -84,7 +84,6 @@ class CarController():
   def update(self, enabled, CS, frame, actuators,
              pcm_cancel_cmd, hud_alert, forwarding_camera, left_line,
              right_line, lead, left_lane_depart, right_lane_depart):
-    can_sends = []
 
     # gas and brake
 
