@@ -57,80 +57,80 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def get_params(candidate, fingerprint=gen_empty_fingerprint(), vin="", has_relay=False):
-  print("CarParams new message")
-  ret = car.CarParams.new_message()
-  print("CarParams setting fingerprint and safety")
-  ret.carName = "mitsubishi"
-  ret.carFingerprint = candidate
-  ret.carVin = vin
-  ret.isPandaBlack = False
-  
-  ret.safetyModel = car.CarParams.SafetyModel.toyota
-  print("CarParams done settng safety model")
-  # # pedal
-  ret.enableCruise = True #not ret.enableGasInterceptor
+    print("CarParams new message")
+    ret = car.CarParams.new_message()
+    print("CarParams setting fingerprint and safety")
+    ret.carName = "mitsubishi"
+    ret.carFingerprint = candidate
+    ret.carVin = vin
+    ret.isPandaBlack = False
+    
+    ret.safetyModel = car.CarParams.SafetyModel.toyota
+    print("CarParams done settng safety model")
+    # # pedal
+    ret.enableCruise = True #not ret.enableGasInterceptor
 
-  print("CarParams setting car tuning")
+    print("CarParams setting car tuning")
 
-  ret.steerActuatorDelay = 0.1  # Default delay
-  ret.lateralTuning.init('pid')   
-  ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
-  
-  print("CarParams set up PID") 
-  
-  stop_and_go = True
-  ret.safetyParam = 100
-  ret.wheelbase = 2.55
-  ret.steerRatio = 17.
-  tire_stiffness_factor = 0.444
-  ret.mass = 1080. + STD_CARGO_KG
-  ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.01], [0.005]]
-  ret.lateralTuning.pid.kf = 0.001388889 # 1 / max angle
-  
-  print("CarParams done setting tuning")
-  
-  ret.steerRateCost = 1.0
-  print("CarParams steerRateCost set") #% ret.steerRateCost
-  ret.centerToFront = ret.wheelbase * 0.44
-  print("CarParams centerToFront set") #% ret.centerToFront
-  ret.enableGasInterceptor = True
-  print("CarParams enableGasInterceptor set to True")
+    ret.steerActuatorDelay = 0.1  # Default delay
+    ret.lateralTuning.init('pid')   
+    ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+    
+    print("CarParams set up PID") 
+    
+    stop_and_go = True
+    ret.safetyParam = 100
+    ret.wheelbase = 2.55
+    ret.steerRatio = 17.
+    tire_stiffness_factor = 0.444
+    ret.mass = 1080. + STD_CARGO_KG
+    ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.01], [0.005]]
+    ret.lateralTuning.pid.kf = 0.001388889 # 1 / max angle
+    
+    print("CarParams done setting tuning")
+    
+    ret.steerRateCost = 1.0
+    print("CarParams steerRateCost set") #% ret.steerRateCost
+    ret.centerToFront = ret.wheelbase * 0.44
+    print("CarParams centerToFront set") #% ret.centerToFront
+    ret.enableGasInterceptor = True
+    print("CarParams enableGasInterceptor set to True")
 
-  ret.minEnableSpeed = -1.
-  print("CarParams done setting ratecost and min enable speed")
+    ret.minEnableSpeed = -1.
+    print("CarParams done setting ratecost and min enable speed")
 
-  ret.rotationalInertia = scale_rot_inertia(ret.mass, ret.wheelbase)
-  ret.tireStiffnessFront, ret.tireStiffnessRear = scale_tire_stiffness(ret.mass, ret.wheelbase, ret.centerToFront,
-                                                                        tire_stiffness_factor=tire_stiffness_factor)
-  ret.steerRatioRear = 0.
-  ret.steerControlType = car.CarParams.SteerControlType.angle
+    ret.rotationalInertia = scale_rot_inertia(ret.mass, ret.wheelbase)
+    ret.tireStiffnessFront, ret.tireStiffnessRear = scale_tire_stiffness(ret.mass, ret.wheelbase, ret.centerToFront,
+                                                                          tire_stiffness_factor=tire_stiffness_factor)
+    ret.steerRatioRear = 0.
+    ret.steerControlType = car.CarParams.SteerControlType.angle
 
-  # steer, gas, brake limitations VS speed
-  ret.steerMaxBP = [16. * CV.KPH_TO_MS, 45. * CV.KPH_TO_MS]  # breakpoints at 1 and 40 kph
-  ret.steerMaxV = [1., 1.]  # 2/3rd torque allowed above 45 kph
-  ret.brakeMaxBP = [0.]
-  ret.brakeMaxV = [1.]
-  
-  ret.enableCamera = True #not check_ecu_msgs(fingerprint, ECU.CAM) or is_panda_black
-  ret.enableDsu = True #not check_ecu_msgs(fingerprint, ECU.DSU)
-  ret.enableApgs = False #not check_ecu_msgs(fingerprint, ECU.APGS)
-  ret.openpilotLongitudinalControl = True #ret.enableCamera and ret.enableDsu
-  cloudlog.warn("CarParams ECU DSU Simulated: %r", ret.enableDsu)
+    # steer, gas, brake limitations VS speed
+    ret.steerMaxBP = [16. * CV.KPH_TO_MS, 45. * CV.KPH_TO_MS]  # breakpoints at 1 and 40 kph
+    ret.steerMaxV = [1., 1.]  # 2/3rd torque allowed above 45 kph
+    ret.brakeMaxBP = [0.]
+    ret.brakeMaxV = [1.]
+    
+    ret.enableCamera = True #not check_ecu_msgs(fingerprint, ECU.CAM) or is_panda_black
+    ret.enableDsu = True #not check_ecu_msgs(fingerprint, ECU.DSU)
+    ret.enableApgs = False #not check_ecu_msgs(fingerprint, ECU.APGS)
+    ret.openpilotLongitudinalControl = True #ret.enableCamera and ret.enableDsu
+    cloudlog.warn("CarParams ECU DSU Simulated: %r", ret.enableDsu)
 
-  ret.steerLimitAlert = False
+    ret.steerLimitAlert = False
 
-  ret.longitudinalTuning.deadzoneBP = [0., 9.]
-  ret.longitudinalTuning.deadzoneV = [0., .15]
-  ret.longitudinalTuning.kpBP = [0., 5., 35.]
-  ret.longitudinalTuning.kiBP = [0., 35.]
-  ret.stoppingControl = False
-  ret.startAccel = 0.0
+    ret.longitudinalTuning.deadzoneBP = [0., 9.]
+    ret.longitudinalTuning.deadzoneV = [0., .15]
+    ret.longitudinalTuning.kpBP = [0., 5., 35.]
+    ret.longitudinalTuning.kiBP = [0., 35.]
+    ret.stoppingControl = False
+    ret.startAccel = 0.0
 
-  ret.gasMaxBP = [0., 9., 35]
-  ret.gasMaxV = [0.2, 0.5, 0.7]
-  ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
-  ret.longitudinalTuning.kiV = [0.18, 0.12]
-  return ret
+    ret.gasMaxBP = [0., 9., 35]
+    ret.gasMaxV = [0.2, 0.5, 0.7]
+    ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
+    ret.longitudinalTuning.kiV = [0.18, 0.12]
+    return ret
 
   # returns a car.CarState
   def update(self, c, can_strings):
