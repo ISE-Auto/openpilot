@@ -1,7 +1,7 @@
 from cereal import car
 from common.numpy_fast import clip
-from selfdrive.car import create_gas_command
-from selfdrive.car.mitsubishi.mitsubishican import make_toyota_can_msg, create_steer_command, create_brake_command
+from selfdrive.car import apply_toyota_steer_torque_limits, create_gas_command, make_can_msg
+from selfdrive.car.mitsubishi.mitsubishican import create_steer_command, create_brake_command
 from selfdrive.car.mitsubishi.values import ECU, STATIC_MSGS
 from opendbc.can.packer import CANPacker
 
@@ -15,10 +15,10 @@ ACCEL_SCALE = max(ACCEL_MAX, -ACCEL_MIN)
 
 # Steer torque limits
 class SteerLimitParams:
-  STEER_MAX = 2000
+  STEER_MAX = 1500
   STEER_DELTA_UP = 25       # 1.5s time to peak torque
   STEER_DELTA_DOWN = 50     # always lower than 45 otherwise the Rav4 faults (Prius seems ok with 50)
-  STEER_ERROR_MAX = 350     # max delta between torque cmd and torque motor
+  STEER_ERROR_MAX = 600     # max delta between torque cmd and torque motor
 
 # Steer angle limits (tested at the Crows Landing track and considered ok)
 ANGLE_MAX_BP = [0., 5.]
@@ -60,31 +60,6 @@ def process_hud_alert(hud_alert):
 
   return steer, fcw
 
-
-# def ipas_state_transition(steer_angle_enabled, enabled, ipas_active, ipas_reset_counter):
-
-#   if enabled and not steer_angle_enabled:
-#     ipas_reset_counter = max(0, ipas_reset_counter - 1)
-#     if ipas_reset_counter == 0:
-#       steer_angle_enabled = True
-#     else:
-#       steer_angle_enabled = False
-#       return steer_angle_enabled, ipas_reset_counter
-#     return True, 0
-
-#   elif enabled and steer_angle_enabled: 
-#     if steer_angle_enabled and not ipas_active:
-#        ipas_reset_counter += 1  
-#     else:
-#        ipas_reset_counter = 0 
-#     if ipas_reset_counter > 10:  # try every 0.1s
-#        steer_angle_enabled = False
-#     return steer_angle_enabled, ipas_reset_counter
-
-#   else:
-#     return False, 0
-
-
 class CarController():
   def __init__(self, dbc_name=None, car_fingerprint = "MIEV", enable_camera=1, enable_dsu=1, enable_apg=1):
     self.braking = False
@@ -117,25 +92,22 @@ class CarController():
     apply_brake = clip(actuators.brake, 0., 1.)
 
     # steer torque
-    apply_steer = int(round(actuators.steer * SteerLimitParams.STEER_MAX))
-    
-    #only cut torque when steer state is a known fault
-    if (CS.steer_state >= 1):
-     self.last_fault_frame = frame
+    new_steer = int(round(actuators.steer * SteerLimitParams.STEER_MAX))
+    apply_steer = apply_toyota_steer_torque_limits(new_steer, self.last_steer, CS.steer_torque_motor, SteerLimitParams)
+    self.steer_rate_limited = new_steer != apply_steer
 
-    #Cut steering for 0.5s after fault
-    if not enabled or (frame - self.last_fault_frame < 10):
+    # only cut torque when steer state is a known fault
+    if CS.steer_state in [9, 25]:
+      self.last_fault_frame = frame
+
+    # Cut steering for 2s after fault
+    if not enabled or (frame - self.last_fault_frame < 200):
       apply_steer = 0
       apply_steer_req = 0
     else:
       apply_steer_req = 1
 
-    #if not enabled and CS.pcm_acc_status:
-      # send pcm acc cancel cmd if drive is disabled but pcm is still on, or if the system can't be activated
-    #  pcm_cancel_cmd = 1
-
     self.last_steer = apply_steer
-    #self.last_standstill = CS.standstill
 
     can_sends = []
 
@@ -144,8 +116,8 @@ class CarController():
       # This prevents unexpected pedal range rescaling
       can_sends.append(create_gas_command(self.packer, apply_gas, frame//2))
       can_sends.append(create_brake_command(self.packer, apply_brake, frame//2))
-    # steering at 100hz
-    can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, frame))
+      can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, frame//2))
+
     # ui mesg is at 100Hz but we send asap if:
     # - there is something to display
     # - there is something to stop displaying
@@ -164,8 +136,8 @@ class CarController():
       send_ui = True
 
     #*** static msgs ***
-    for (addr, ecu, cars, bus, fr_step, vl) in STATIC_MSGS:
+    for (addr, bus, fr_step, vl) in STATIC_MSGS:
       if frame % fr_step == 0:
-        can_sends.append(make_toyota_can_msg(addr, vl, bus, False))
+        can_sends.append(make_can_msg(addr, vl, bus))
 
     return can_sends

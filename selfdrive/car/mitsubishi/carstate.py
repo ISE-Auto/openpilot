@@ -58,7 +58,7 @@ class CarState():
                          C=[1.0, 0.0],
                          K=[[0.12287673], [0.29666309]])
     self.v_ego = 0.0
-    self.pcm_acc_on = False
+    self.main_on = False
     self.pcm_acc_active = False
     self.pcm_acc_status = 0
     self.v_cruise_pcm = 0
@@ -98,18 +98,17 @@ class CarState():
     self.angle_steers = cp.vl["STEER_ANGLE_SENSOR"]['STEER_ANGLE']
     self.angle_steers_rate = cp.vl["STEER_ANGLE_SENSOR"]['STEER_RATE']
     self.gear_shifter = 'drive' #parse_gear_shifter(can_gear, self.shifter_values)
-    self.main_on = True #cp.vl["PCM_CRUISE_2"]['MAIN_ON']
-#     self.left_blinker_on = cp.vl["STEERING_LEVERS"]['TURN_SIGNALS'] == 1
-#     self.right_blinker_on = cp.vl["STEERING_LEVERS"]['TURN_SIGNALS'] == 2
 
 #     # 2 is standby, 10 is active. TODO: check that everything else is really a faulty state
     self.steer_state = cp.vl["STEER_SENSOR"]['STATE']
     self.steer_error = cp.vl["STEER_SENSOR"]['STATE'] not in [0]
     self.ipas_active = False
     self.brake_error = 0
-    self.steer_torque_driver = cp.vl["STEER_SENSOR"]['INTERCEPTOR_TRQ'] - cp.vl['STEER_SENSOR']['INTERCEPTOR_TRQ2']
+    self.steer_torque_driver = (cp.vl["STEER_SENSOR"]['INTERCEPTOR_TRQ'] - cp.vl['STEER_SENSOR']['INTERCEPTOR_TRQ2']) * 256
     self.steer_torque_motor = cp.vl["STEER_TORQUE_SENSOR"]["STEER_TORQUE_EPS"]
-#     # we could use the override bit from dbc, but it's triggered at too high torque values
+    # print("motor:", self.steer_torque_motor, "driver:", self.steer_torque_driver)
+    # TODO: check this math
+    # we could use the override bit from dbc, but it's triggered at too high torque values
     self.steer_override = abs(self.steer_torque_driver) > STEER_THRESHOLD
 
     self.user_brake = 0
@@ -121,8 +120,6 @@ class CarState():
     # only change states if button state changed
     # welcome to IF hell. TODO: take some time and do this better
     if cruise_button_state != self.cruise_button_state_last:
-      if cruise_button_state == 0x0f:
-        self.main_on = not self.main_on
       if self.main_on:
         # only change these other states if main_on AND the state changed.
         if cruise_button_state == 0x0a:
@@ -138,12 +135,15 @@ class CarState():
             self.pcm_acc_active = True       
         elif cruise_button_state == 0x07:
           self.pcm_acc_active = False
+
+      if cruise_button_state == 0x0f:
+        self.main_on = not self.main_on
+
     if not self.main_on:
       self.speed_offset = 0
       self.pcm_acc_status = 0
     self.cruise_button_state_last = cruise_button_state
-    self.main_on = self.pcm_acc_on
-    
+
     # if not self.pcm_acc_active:
     #   self.pcm_acc_status = not self.user_brake #cruise activates as soon as user stops pressing the brake
     #   self.v_cruise_pcm = cp.vl["COMBOMETER"]["SPEED"]

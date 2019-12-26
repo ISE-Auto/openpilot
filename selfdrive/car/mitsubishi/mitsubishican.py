@@ -12,12 +12,9 @@ def toyota_fix(msg, addr):
   #return msg + chr(checksum & 0xFF)
   return msg + struct.pack("B", checksum & 0xFF)
 
-
-def make_toyota_can_msg(addr, dat, alt, cks=False):
-  if cks:
-    dat = toyota_fix(dat, addr)
-  return [addr, 0, dat, alt]
-
+# this is the old checksum calculator, new one lives in proces_dbc.py
+# throttle seems to work with ID at 0x450 because it's defined in DBC as a Pedal. This may need to change.
+# TODO: try to use the new calculator with the custom interceptor msgs
 
 def crc8(data):
   crc = 0xFF    # standard init value
@@ -73,3 +70,5 @@ def create_brake_command(packer, brake_amount, idx):
   values["CHECKSUM_BRAKE"] = checksum
 
   return packer.make_can_msg("BRAKE_COMMAND", 0, values)
+
+# TODO: create a master PCM_CANCEL that kills all the interceptors

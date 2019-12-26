@@ -36,7 +36,7 @@ Pin 42 -PA9 - ANGLE_SENSOR_PWM
 
 #define CAN CAN1
 
-//#define PEDAL_USB
+#define PEDAL_USB
 
 #ifdef PEDAL_USB
   #include "drivers/uart.h"
